@@ -54,30 +54,23 @@ export class AuthService {
         return { success: false, error: '注册失败，请重试' };
       }
 
-      // 创建用户档案并赠送100积分
-      const { error: profileError } = await supabase
+      // 用户档案由数据库触发器 handle_new_user() 自动创建并赠送100积分
+      const { data: profile, error: profileError } = await supabase
         .from('user_profiles')
-        .insert({
-          id: authData.user.id,
-          username: data.username,
-          credits: 100, // 首次注册赠送100积分
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
+        .select('*')
+        .eq('id', authData.user.id)
+        .single();
 
-      if (profileError) {
-        console.error('Profile creation error:', profileError);
-        // 如果档案创建失败，删除已创建的用户
-        await supabase.auth.admin.deleteUser(authData.user.id);
-        return { success: false, error: '用户档案创建失败' };
+      if (profileError || !profile) {
+        console.error('Profile fetch after signup:', profileError);
+        return { success: false, error: '用户档案未就绪，请稍后重试' };
       }
 
-      // 返回用户信息
       const user: AuthUser = {
         id: authData.user.id,
         email: authData.user.email,
-        username: data.username,
-        credits: 100
+        username: profile.username,
+        credits: profile.credits
       };
 
       return { success: true, user };
